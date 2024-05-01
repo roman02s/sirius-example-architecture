@@ -1,0 +1,111 @@
+version: '3.7'
+
+services:
+  ed-zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: ed-zookeeper
+    ports:
+      - 2181:2181
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  ed-kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: ed-kafka
+    depends_on:
+      - ed-zookeeper
+    ports:
+      - 9092:9092
+    volumes:
+      - streaming_data:/data:rw
+      - ./kafka/kafka.sh:/kafka.sh
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: ed-zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://ed-kafka:29092,PLAINTEXT_HOST://127.0.0.1:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CREATE_TOPICS: "raw:1:1"
+
+  # nginx:
+  #   image: nginxproxy/nginx-proxy
+  #   container_name: nginx-stream-proxy
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - /var/run/docker.sock:/tmp/docker.sock:ro
+      # - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    expose:
+      - "8000"
+    environment:
+      - VIRTUAL_HOST=backend
+      - VIRTUAL_PORT=8000
+      - VIRTUAL_DEST=/
+      - GIGACHAT_API_TOKEN=${GIGACHAT_API_TOKEN}
+    depends_on:
+        - ed-kafka
+
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "9000:8000"
+    expose:
+      - "9000"
+    environment:
+      - VIRTUAL_HOST=frontend
+      - VIRTUAL_PORT=9000
+    depends_on:
+      - ed-kafka
+
+  frontend-1:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "9001:8000"
+    expose:
+      - "9001"
+    environment:
+      - VIRTUAL_HOST=frontend
+      - VIRTUAL_PORT=9001
+    depends_on:
+        - ed-kafka
+  
+  frontend-2:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "9002:8000"
+    expose:
+      - "9002"
+    environment:
+      - VIRTUAL_HOST=frontend
+      - VIRTUAL_PORT=9002
+    depends_on:
+    - ed-kafka
+    - redis-storage
+
+  redis-storage:
+    image: redis/redis-stack:latest
+    container_name: 'redis-storage'
+    ports:
+      - 6379:6379
+      - 8001:8001
+    volumes:
+      - redis-storage-data:/data
+
+
+volumes:
+  streaming_data:
+  redis-storage-data:

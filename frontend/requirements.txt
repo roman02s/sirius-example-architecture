@@ -1,0 +1,4 @@
+pip-chill==1.0.3
+streamlit
+pyarrow
+kafka-python==2.0.2
